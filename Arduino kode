@@ -1,0 +1,34 @@
+#include <SPI.h>
+#include <TimerOne.h>
+SPISettings settings(8000000, MSBFIRST, SPI_MODE0);
+int val16 = 0;
+const long tSampleInMicros = 2500; // Sample time in microseconds
+
+void setup() {
+ // put your setup code here, to run once:
+ Serial.begin(38400); //Standard værdi
+ SPI.begin();
+ SPI.beginTransaction(settings);
+ pinMode(10, OUTPUT);
+ digitalWrite(10, HIGH);
+ Timer1.initialize(tSampleInMicros); // initialize timer1, and set the period
+ Timer1.attachInterrupt(getEKG); // attaches callback() as a timer overflow interrupt
+ // while (!Serial) {
+ //   ; //wait for serial port to connect
+ // }
+}
+
+void loop() {
+ // put your main code here, to run repeatedly:
+
+}
+
+void getEKG (){
+ //SPI.transfer16(0x00)
+ digitalWrite(10, LOW);
+ val16 = SPI.transfer16(0x00);
+ digitalWrite(10, HIGH);
+ Serial.println(val16);
+  //measureAndSend() //laver en AD-konvertering (kalder den ovenfor udviklede funktion getEKGADC() ), og sender de målte data til PC’en
+
+}
