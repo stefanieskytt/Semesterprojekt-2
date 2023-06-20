@@ -1,0 +1,130 @@
+import datetime
+import threading
+import tkinter as tk
+from tkinter import messagebox
+from collections import deque
+
+
+class view(tk.Frame):
+    def login(self):
+        username = "1"
+        password = "1"
+        if self.username_entry.get() == username and self.password_entry.get() == password:
+            print("Jornal åbnet")
+            self.frame.destroy()
+            self.create_view_page()
+        else:
+            print("ugyldigt login")
+
+    def __init__(self, master, queue, sensor):
+        super().__init__(master)
+        self.master = master
+        self.queue = queue
+        self.sensor =sensor
+        self.create_login_page()
+        self.h = 700
+        self.w = 850
+        self.c=self.sensor.c
+        self.latest_pulses = deque(maxlen=10)
+
+    def create_login_page(self):
+        # Opretter login side
+        self.frame = tk.Frame(bg='#333333')
+        self.login_label = tk.Label(
+            self.frame, text="login", bg='black', fg="pink", font=("Arial", 30))
+        self.username_label = tk.Label(
+            self.frame, text="Patient", bg='black', fg="white", font=("Arial", 16))
+        self.password_label = tk.Label(
+            self.frame, text="CPR-nummer", bg='black', fg="white", font=("Arial", 16))
+        self.username_entry = tk.Entry(self.frame, font=("Arial", 16))
+        self.password_entry = tk.Entry(self.frame, show="*", font=("Arial", 16))
+        self.login_button = tk.Button(self.frame, text="åben journal", font=("Arial", 16), command=self.login)
+
+        self.frame.grid(row=0, column=0,columnspan=5, padx=50,pady=50)
+        self.login_label.grid(row=0, column=0, columnspan=2)
+        self.username_label.grid(row=1, column=0)
+        self.password_label.grid(row=2, column=0)
+        self.username_entry.grid(row=1, column=1)
+        self.password_entry.grid(row=2, column=1)
+        self.login_button.grid(row=3, column=0, columnspan=2)
+
+    def create_view_page(self):
+        # Graf label
+        self.buttong=tk.Button(self.master, text ="Vis graf for EKG", command=self.showgraph)
+        self.buttong.grid(row=0,column=2, pady=20)
+        self.buttong.configure(height=5)
+        #graph(600, 800, self.queue)
+
+        # Målinger af EKG knap
+        self.button1 = tk.Button(self.master, text="Målinger af EKG", command=self.print_message1)
+        self.button1.grid(row=1, column=2, pady=50)
+        self.button1.configure(width=20, height=2, font=("Arial", 12))
+
+        # Målinger af puls værdi
+        self.button2 = tk.Button(self.master, text="Puls værdi", command=self.print_message2)
+        self.button2.grid(row=2, column=2, pady=5)
+        self.button2.configure(width=20, height=2, font=("Arial", 12))
+
+    def print_message1(self):
+        print("EKG måling")
+
+    def insert_spaces(string, n):
+        return ' '.join(string[i:i + n] for i in range(0, len(string), n))
+
+    def print_message2(self):
+        if self.sensor.c != 0:
+            result = self.sensor.getpulse()
+            print("Puls måling:", result)
+            self.latest_pulses.append(result)
+            self.latest_pulses_str = ' '.join(str(pulse) for pulse in self.latest_pulses) # Opret en streng med de seneste 10 værdier adskilt af mellemrum
+            messagebox.showinfo("Seneste puls", self.latest_pulses_str) # Vis de seneste 10 værdier i beskedboksen
+        else:
+            print("Puls måling: Ugyldig værdi for c")
+
+    def graph(self):
+        print("graf")
+        sub_frame = tk.Frame(self.master)
+        sub_frame.place(x=200, y=0, width=900, height=1000)
+
+        canvas = tk.Canvas(sub_frame)
+        canvas.configure(bg="white")
+        canvas.config(width=900, height=700)
+
+        list = self.queue.get()
+        if len(list) == 0:
+            return
+
+        maxvaerdi = list[0]
+        minvaerdi = list[0]
+        for i in list:
+            if i > maxvaerdi:
+                maxvaerdi = i
+            elif i < minvaerdi:
+                minvaerdi = i
+        maxx, minx, maxy, miny, step = len(list) + 10, -10, 3000, 100, 400
+
+        deltax = self.w / (maxx - minx)
+        deltay = self.h / (maxy - miny)
+        origox = -minx * deltax
+        origoy = self.h + miny * deltay
+
+        canvas.create_line(int(origox), 0, int(origox), self.h - 1, fill="grey")
+        canvas.create_line(0, int(origoy), self.w - 1, int(origoy), fill="grey")
+        for i in range((minx // step) * step, maxx, step):
+            canvas.create_line(int(origox + i * deltax), int(origoy - 5), int(origox + i * deltax), int(origoy + 5),
+                               fill="black")
+        for i in range((miny // step) * step, maxy, step):
+            canvas.create_line(int(origox - 5), int(origoy - i * deltay), int(origox + 5), int(origoy - i * deltay),
+                               fill="black")
+
+        for i in range(1, len(list)):
+            x0 = int((i - 1) * deltax + origox)
+            y0 = int(origoy - (list[i - 1] * deltay))
+            x1 = int(i * deltax + origox)
+            y1 = int(origoy - (list[i] * deltay))
+            canvas.create_line(x0, y0, x1, y1, fill="blue")
+        canvas.pack(fill=tk.BOTH, expand=True)
+
+    def showgraph(self):
+        self.graph()
+        self.master.after(2000, self.showgraph)
