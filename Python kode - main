@@ -1,0 +1,154 @@
+from threading import Condition
+import sqlite3
+import threading
+from view import *
+import time
+
+buffer =""
+
+class queue:
+	def __init__(self):
+		self._buffer = buffer
+		self._lock = Condition()
+		self._list = []
+
+	def get(self):
+		with self._lock:
+			while len(self._list) < 1:
+				self._lock.wait()
+			buffer = self._list[0]
+			self._list.pop(0)
+			return buffer
+
+	def put(self, buffer):
+		with self._lock:
+			self._list.append(buffer)
+			if len(self._list) == 1:
+				self._lock.notify()
+
+	def size(self):
+		with self._lock:
+			return len(self._list)
+
+import serial
+import serial.tools.list_ports
+
+class sensor(threading.Thread):
+	def __init__(self, q):
+		super().__init__()
+		self.ports = serial.tools.list_ports.comports()
+		self.buffer = []
+		self.ser = serial.Serial('/dev/cu.usbmodem1101', 38400, timeout=1)
+		self.q=q
+		self.s = 0
+		self.c = 0  # ande aflede
+		self.f = 0
+		self.f1 = 0
+		self.f2 =0
+		self.max=0
+		self.pulse =0
+
+	def getpulse(self):
+		return self.pulse
+
+	def run(self):
+		first = True
+		while True:
+			l = self.ser.readline().rstrip().decode()
+			if l:
+				d = int(l)
+				self.buffer.append(d)
+				if self.s>1:
+					m = d-self.f
+					self.f2 = m-self.f1
+					self.f1=m
+					self.f=d
+					if self.s ==2:
+						self.s=3
+				elif self.s == 0:
+					self.f = d
+					self.s =1
+				elif self.s == 1:
+					self.f1 = d-self.f
+					self.f = d
+					self.s=2
+				if self.s==3:
+					if self.c<1000:
+						if self.max < self.f1:
+							self.max = self.f1
+						self.c += 1
+					else:
+						self.c=0
+						self.max=int(self.max*0.6)
+						self.s=4
+				if self.s == 4:
+					if self.f1>self.max and self.f2<=0 and self.c>30:
+						if first : first = False
+						else:
+							self.pulse=int(400/self.c*60)
+							print(self.pulse,self.c)
+						self.c=0
+					else:
+						self.c+=1
+				if len(self.buffer) >= 600:
+					self.q.put(self.buffer)
+					#print(self.buffer)
+					self.buffer = []
+
+
+class database(threading.Thread):
+	undersoegelse = "INSERT INTO undersogelse(initialer) values ('sc')"
+	id = "select id from undersogelse order by id desc limit 1"
+	insert = "INSERT INTO maaling(value, undersoegelse) VALUES "
+
+	def __init__(self,q,q2):
+		super().__init__()
+		self.q=q
+		self.q2=q2
+
+	def run(self):
+		try:
+			connection = sqlite3.connect("ekg_maaling.db")
+			cursor=connection.cursor()
+			result = cursor.execute(database.undersoegelse)
+			connection.commit()
+			cursor.execute(database.id)
+			id_result = cursor.fetchone()[0]
+		except sqlite3.Error as e:
+			print("fejl",e)
+		while True:
+			buffer = self.q.get()
+			query = database.insert[:]
+			for i in range(600):
+				query += "("+str(buffer[i])+","+str(id_result)+")"
+				if i < 599:
+					query += ","
+			#print(query)
+			self.q2.put(buffer)
+			#print(self.q2.size())
+			try:
+				cursor.execute(query)
+				connection.commit()
+			except sqlite3.Error as e:
+				print("fejl",e)
+
+class main():
+	def __init__(self):
+		self.window=tk.Tk()
+		self.window.geometry("1200x800")
+		self.window.title("Patient")
+
+		q = queue()
+		q2 = queue()
+
+		self.sensor = sensor(q)
+		self.sensor.start()
+
+		db = database(q,q2)
+		self.my_view=view(self.window,q2, self.sensor)
+		#self.my_graph=graph1(self.window,db,q2)
+		db.start()
+		self.window.mainloop()
+
+if __name__ == '__main__':
+	main = main()
