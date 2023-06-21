@@ -1,0 +1,93 @@
+import threading
+import tkinter as tk
+import time
+from queue import Queue
+from control import Database as db
+
+from control import Database
+from view import view
+
+class main:
+  def __init__(self):
+      self.window = tk.Tk()
+      self.window.geometry("900x600")
+      self.window.title("Patient")
+
+      db_instance = Database("ekg_maaling.db")
+      my_view = view(self.window, database=db_instance)
+      my_buffer = Buffer(data_batch_size=100, database=db_instance)
+      my_sensor = Sensor(arduino_file_path="EKG_DATA.txt", buffer=my_buffer)
+      #my_view.animate()
+
+      start_animation_button = tk.Button(self.window, text="Start Animation", command=my_view.start_animation)
+      start_animation_button.grid(row=4, column=2)
+
+      self.window.mainloop()
+      my_sensor.start()
+      #my_sensor.start_sensing()
+
+class Buffer:
+  def __init__(self, data_batch_size, database):
+      self.data_batch_size = data_batch_size
+      self.database = database
+      self.data_buffer = []
+
+  def add_data(self,data):
+      self.data_buffer.append(data)
+
+      if len(self.data_buffer)>= self.data_batch_size:
+          self.store_in_database()
+
+  def store_in_database(self):
+      self.database.store_data_batch(self.data_buffer)
+      self.data_buffer = []
+
+  def buffer_empty_check(self):
+      return len(self.data_buffer) == 0
+
+class DataQueue:
+   def __init__(self):
+       self.queue = Queue()
+       self.condition = threading.Condition()
+
+   def put(self, data):
+       with self.condition:
+           self.queue.put(data)
+           self.condition.notify()  # Notify giver besked til anden tråd
+
+   def get(self):
+       with self.condition:
+           while self.queue.empty():
+               self.condition.wait()  # Wait får tråden til at vente på data bliver tilgængelig
+           return self.queue.get()
+
+   def empty(self):
+       with self.condition:
+           return self.queue.empty()
+
+class Sensor(threading.Thread):
+  def __init__(self, arduino_file_path, buffer, database):
+      super().__init__()
+      self.arduino_file_path = arduino_file_path
+      self.buffer = buffer
+      self.database = database
+      self.running = True
+
+  def run(self):
+      while self.running:
+          data = self.read_data()
+          self.data_queue.put(data)
+          self.database.store_data(data)
+
+  def read_data(self):
+     data = 0
+     return data
+
+  def stop(self):
+      self.running = False
+
+  #def start_sensing(self):
+   #   self.read_data_from_file()
+
+if __name__ == '__main__':
+  main = main()
