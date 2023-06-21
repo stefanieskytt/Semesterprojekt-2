@@ -1,0 +1,106 @@
+import datetime
+import tkinter as tk
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from matplotlib import style
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+from control import Database as db
+
+class view(tk.Frame):
+
+
+ def login(self):
+     username = "Alban"
+     password = "2206802023"
+     if self.username_entry.get() == username and self.password_entry.get() == password:
+         print("Jornal åbnet")
+     else:
+         print("ugyldigt login")
+
+
+ def __init__(self, master, database):
+     super().__init__(master)
+     self.master = master
+     self.database = database
+#Graf label
+     self.label = tk.Label(master, text="Graf")
+     self.label.grid(row=0, column=2, pady=20)
+     self.label.configure(height=5)
+
+
+#Målinger af EKG knap
+     self.button1 = tk.Button(master, text="Målinger af EKG", command=self.print_message1)
+     self.button1.grid(row=1, column=2, pady=50)
+     self.button1.configure(width=20, height=2, font=("Arial", 12))
+
+
+# Målinger af puls værdi
+     self.button2 = tk.Button(master, text="Puls værdi", command=self.print_message2)
+     self.button2.grid(row=2, column=2, pady=5)
+     self.button2.configure(width=20, height=2, font=("Arial", 12))
+
+
+# Opretter login side
+     self.frame = tk.Frame(bg='#333333')
+     self.login_label = tk.Label(
+         self.frame, text="login", bg='black', fg="pink", font=("Arial", 30))
+     self.username_label = tk.Label(
+         self.frame, text="Patient", bg='black', fg="white", font=("Arial", 16))
+     self.password_label = tk.Label(
+         self.frame, text="CPR-nummer", bg='black', fg="white", font=("Arial", 16))
+     self.username_entry = tk.Entry(self.frame, font=("Arial", 16))
+     self.password_entry = tk.Entry(self.frame, show="*", font=("Arial", 16))
+     self.login_button = tk.Button(self.frame, text="åben jornal", font=("Arial", 16), command=self.lukknap)
+
+
+     self.frame.grid(row=0, column=0,columnspan=5, padx=50,pady=50)
+     self.login_label.grid(row=0, column=0, columnspan=2)
+     self.username_label.grid(row=1, column=0)
+     self.password_label.grid(row=2, column=0)
+     self.username_entry.grid(row=1, column=1)
+     self.password_entry.grid(row=2, column=1)
+     self.login_button.grid(row=3, column=0, columnspan=2)
+
+
+ def lukknap(self):
+     self.frame.destroy()
+     print("knap")
+
+
+ def print_message1(self):
+     print("EKG måling")
+
+
+ def print_message2(self):
+     print("Puls måling")
+
+ def animate(self):
+      style.use('fivethirtyeight')
+
+      fig = plt.figure(figsize=(8,6))
+      ax1 = fig.add_subplot(1, 1, 1)
+
+      graph_data = open(file='EKG_DATA.txt').readlines()
+
+      start_time = datetime.datetime.now()
+      time_intervals = [start_time + datetime.timedelta(seconds=6000*i) for i in range(len(graph_data))]
+
+      ax1.clear()
+      ax1.plot(range(len(graph_data)), graph_data)
+
+      ax1.set_yticks([-0.5, 0, 0.5, 1])
+      ax1.set_yticklabels(['-0.5 mV', '0 mV', '0.5 mV', '1 mV'])
+
+      ax1.set_xticks(range(len(graph_data)))
+      ax1.set_xticklabels(time_intervals, rotation=45)
+
+      canvas = FigureCanvasTkAgg(fig, master=self.master)
+      canvas.draw()
+      canvas.get_tk_widget().grid(row=3, column=2)
+      plt.show()
+
+ def start_animation(self):
+     fig = plt.figure(figsize=(8, 6))
+     ani = animation.FuncAnimation(fig, self.animate, interval=6000)
+     plt.show()
